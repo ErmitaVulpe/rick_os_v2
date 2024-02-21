@@ -1,27 +1,22 @@
 extern kmain
-extern DUPA22
+extern map_memory
+extern p4_table
 
-global start
+global _start
+global print
+global debug
+
 
 section .text
 bits 32
-start:
+_start:
+    cmp eax, 0x36d76289
+    jne multiboot_not_compliant
+
     ; save the initial state and pass it to kmain
-    mov edi, eax
-    mov esi, ebx
-
-    ; Point the first entry of the level 4 page table to the first entry in the
-    ; p3 table
-    mov eax, p3_table
-    or eax, 0b11
-    mov dword [p4_table + 0], eax
-
-    ; point each page table level two entry to a page
-    mov dword [p3_table + 0], 0b10000011
-    mov dword [p3_table + 8], 0b10000011 | 0x40000000
-    mov dword [p3_table + 16], 0b10000011 | 0x80000000
-    mov dword [p3_table + 24], 0b10000011 | 0xC0000000
-
+    push ebx
+    mov edi, ebx
+    call map_memory
 
     ; move page table address to cr3
     mov eax, p4_table
@@ -44,6 +39,8 @@ start:
     or eax, 1 << 16
     mov cr0, eax
 
+    pop edi
+
     ; load GDT
     lgdt [gdt64.pointer]
 
@@ -56,33 +53,49 @@ start:
     ; enter long mode
     jmp gdt64.code:kmain
 
-debug:
-    mov dx, 0x3F8 ; COM1
 
-    mov al, 0x48  ; H
+; prints a string contained where the porter in esi points, has to be null terminated
+print:
+    push dx
+    push ax
+
+    mov dx, 0x3F8   ; COM1
+    cld             ; clear the direction flag (increment)
+
+    print_loop:
+    lodsb           ; progress the esi
+    test al, al     ; check for null terminator
+    jz end_print
     out dx, al
-    mov al, 0x45  ; E
+    jmp print_loop
+
+    end_print:
+    mov al, 0x0A ; \n
     out dx, al
-    mov al, 0x52  ; R
+    mov al, 0x0D ; \r
     out dx, al
-    mov al, 0x45  ; E
-    out dx, al
-    mov al, 0x0A  ; \n
-    out dx, al
-    mov al, 0x0D  ; \r
-    out dx, al
+    pop ax
+    pop dx
     ret
 
+debug:
+    push esi
+    mov esi, msg_debug
+    call print
+    pop esi
+    ret
 
-section .bss
+global multiboot_not_compliant
+multiboot_not_compliant:
+    mov esi, msg_multiboot_not_compliant
+    call print
+    hlt
 
-align 4096
-
-p4_table:
-    resb 4096
-p3_table:
-    resb 4096
-
+global unsupported_multiboot2_version
+unsupported_multiboot2_version:
+    mov esi, msg_multiboot_version_not_supported
+    call print
+    hlt
 
 section .rodata
 ; dummy gdt for transitioning to long mode
@@ -97,4 +110,8 @@ gdt64:
     dw .pointer - gdt64 - 1
     dq gdt64
 
+
+msg_multiboot_not_compliant db "Bootloader is not multiboot2 compliant", 0
+msg_multiboot_version_not_supported db "Unsupported version of the multiboot2 standard", 0
+msg_debug db "debug", 0
 
