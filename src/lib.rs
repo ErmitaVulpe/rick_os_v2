@@ -9,34 +9,43 @@ extern crate alloc;
 
 mod com;
 mod memory;
-mod idt;
+mod interrupts;
+mod task;
+
+use task::{executor::Executor, keyboard, Task};
 
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("PANIC!");
     println!("{}", info);
-    unsafe { asm!("hlt") };
-    loop {}
+    loop {
+        unsafe { asm!("hlt") };
+    }
 }
 
 
 #[no_mangle]
 pub extern "C" fn kmain(mbi_ptr: u32) -> ! {
-    idt::init();
+    interrupts::init();
 
     let mbi = unsafe {
         BootInformation::load(mbi_ptr as *const BootInformationHeader).unwrap()
     };
 
-    println!("{:#?}", mbi.memory_map_tag().unwrap());
     memory::init(&mbi);
-    
+
 
     let framebuffer_tag = mbi.framebuffer_tag().unwrap().unwrap();
     let address = framebuffer_tag.address();
     let framebuffer_size = framebuffer_tag.pitch() as usize * framebuffer_tag.height() as usize;
     let framebuffer_ptr = address as *mut u8;
+
+
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(keyboard::print_keypresses()));
+    executor.spawn(Task::new(example_task()));
+    executor.run();
 
 
     println!("Success");
@@ -50,4 +59,16 @@ pub extern "C" fn kmain(mbi_ptr: u32) -> ! {
             }
         }
     }
+}
+
+
+
+
+async fn async_number() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
 }

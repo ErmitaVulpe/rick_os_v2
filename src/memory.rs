@@ -1,4 +1,7 @@
-use multiboot2::{BootInformation, MemoryAreaType, MemoryMapTag};
+use core::alloc::GlobalAlloc;
+
+use crate::println;
+use multiboot2::{BootInformation, MemoryAreaType};
 use linked_list_allocator::LockedHeap;
 
 
@@ -24,6 +27,8 @@ pub fn init(mbi: &BootInformation) {
         (area.size() as usize) - (heap_start_addr - (area.start_address() as usize))
     };
 
+    println!("Initializing heap at range: {} - {} with lenght of: {}", heap_start_addr, heap_start_addr + heap_len, heap_len);
+
     unsafe {
         ALLOCATOR.lock().init(
             heap_start_addr as *mut u8, 
@@ -31,6 +36,19 @@ pub fn init(mbi: &BootInformation) {
         );
     };
 
+
+    // TODO checks if allocator implementation is valid
+    // remove for release 
+    unsafe {
+        use core::alloc::Layout;
+        let layout = Layout::from_size_align(heap_len, 8).unwrap();
+        let ptr = ALLOCATOR.alloc(layout);
+        match ptr as u64 {
+            0 => println!("allocator test: FAILED"),
+            _ => println!("allocator test: SUCCESS"),
+        }
+        ALLOCATOR.dealloc(ptr, layout);
+    }
 }
 
 

@@ -1,13 +1,19 @@
-use core::{
-    arch::asm,
-    fmt::{self, Write}
-};
+use core::fmt::{self, Write};
 use spin::Mutex;
+use x86_64::instructions::port::Port;
 
-const SERIAL_PORT_ADDR: u16 = 0x3F8;
+static mut SERIAL_WRITER: Mutex<SerialWriter> = Mutex::new(SerialWriter::new(0x3F8));
+struct SerialWriter {
+    port: Port<u8>,
+}
 
-static mut SERIAL_WRITER: Mutex<SerialWriter> = Mutex::new(SerialWriter);
-struct SerialWriter;
+impl SerialWriter {
+    const fn new(port_addr: u16) -> Self {
+        Self {
+            port: Port::new(port_addr)
+        }
+    }
+}
 
 impl fmt::Write for SerialWriter {
     #[no_mangle]
@@ -17,21 +23,12 @@ impl fmt::Write for SerialWriter {
                 match byte {
                     // '\n' doesn't insert the carry return by itself so it has to be done manually
                     b'\n' => {
-                        asm!(
-                            "mov al, 0x0A",
-                            "out dx, al",
-                            "mov al, 0x0D",
-                            "out dx, al",
-                            in("dx") SERIAL_PORT_ADDR,
-                        );
+                        self.port.write(0x0A);
+                        self.port.write(0x0D);
                     }
                         
                     _ => {
-                        asm!(
-                            "out dx, al",
-                            in("dx") SERIAL_PORT_ADDR,
-                            in("al") byte,
-                        );
+                        self.port.write(byte);
                     }
                 } 
             }
@@ -53,8 +50,10 @@ macro_rules! println {
 }
 
 pub fn _print(args: fmt::Arguments) {
-    unsafe {
+    use x86_64::instructions::interrupts;
+
+    interrupts::without_interrupts(|| unsafe {
         SERIAL_WRITER.lock().write_fmt(args).unwrap();
-    }
+    });
 }
 
