@@ -16,7 +16,7 @@ _start:
     ; save the initial state and pass it to kmain
     push ebx
     mov edi, ebx
-    call map_memory
+    call map_memory ; TODO remove this and replace it with a macro
 
     ; move page table address to cr3
     mov eax, p4_table

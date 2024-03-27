@@ -1,15 +1,41 @@
 use crate::{print, println};
 use core::arch::asm;
 use lazy_static::lazy_static;
+use x86::apic::ApicControl;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
-use super::PICS;
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, PartialEq)]
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum InterruptIndex {
-    Timer = super::PIC_1_OFFSET,
+    DivideError,
+    Debug,
+    NonMaskableInterrupt,
+    Breakpoint,
+    Overflow,
+    BoundRangeExceeded,
+    InvalidOpcode,
+    DeviceNotAvailable,
+    DoubleFault,
+    CoprocessorSegmentOverrun,
+    InvalidTSS,
+    SegmentNotPResent,
+    StackSegmentFault,
+    GeneralProtectionFault,
+    PageFault,
+    // 15 (0xF) is reserved
+    X87FloatingPoint = 16,
+    AlignmentCheck,
+    MachineCheck,
+    SimdFloatingPoint,
+    
+    // PIC 8259
+    PicTimer = 32,
     Keyboard,
+
+    // APIC
+    APICTimer = 48,
 }
 
 
@@ -25,8 +51,10 @@ lazy_static! {
         idt.invalid_tss.set_handler_fn(invalid_tss_handler);
         idt.segment_not_present.set_handler_fn(segment_not_present_handler);
 
-        idt[InterruptIndex::Timer as usize].set_handler_fn(timer_interrupt_handler);
+        idt[InterruptIndex::PicTimer as usize].set_handler_fn(pic_timer_interrupt_handler);
         idt[InterruptIndex::Keyboard as usize].set_handler_fn(keyboard_interrupt_handler);
+
+        idt[InterruptIndex::APICTimer as usize].set_handler_fn(apic_timer_interrupt_handler);
         idt
     };
 }
@@ -93,16 +121,16 @@ extern "x86-interrupt" fn segment_not_present_handler (
 }
 
 
-extern "x86-interrupt" fn timer_interrupt_handler (
+extern "x86-interrupt" fn pic_timer_interrupt_handler (
     _stack_frame: InterruptStackFrame)
 {
-    print!(".");
-
+    print!("_");
     unsafe {
-        PICS.lock()
-            .notify_end_of_interrupt(InterruptIndex::Timer as u8);
+        super::apic::PICS
+            .notify_end_of_interrupt(InterruptIndex::PicTimer as u8);
     }
 }
+
 
 extern "x86-interrupt" fn keyboard_interrupt_handler (
     _stack_frame: InterruptStackFrame)
@@ -114,7 +142,18 @@ extern "x86-interrupt" fn keyboard_interrupt_handler (
     crate::task::keyboard::add_scancode(scancode);
 
     unsafe {
-        PICS.lock()
+        super::apic::PICS
             .notify_end_of_interrupt(InterruptIndex::Keyboard as u8);
+    }
+}
+
+
+
+extern "x86-interrupt" fn apic_timer_interrupt_handler (
+    _stack_frame: InterruptStackFrame)
+{
+    print!(".");
+    unsafe {
+        super::apic::LOCAL_APIC.get_mut().eoi();
     }
 }

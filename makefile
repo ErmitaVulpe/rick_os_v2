@@ -38,7 +38,8 @@ $(ISO_DIR):
 
 
 run: $(ISO_PATH)
-	qemu-system-x86_64 -cdrom $(ISO_PATH) -m 4G
+	qemu-system-x86_64 -cdrom $(ISO_PATH) -device intel-hda -m 4G -cpu core2duo -smp 1
+
 
 clean:
 	rm -fr $(BUILD_DIR)

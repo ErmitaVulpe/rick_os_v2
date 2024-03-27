@@ -6,10 +6,10 @@ use linked_list_allocator::LockedHeap;
 
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 #[no_mangle]
-pub fn init(mbi: &BootInformation) {
+pub unsafe fn init(mbi: &BootInformation) {
     let memory_areas = mbi
         .memory_map_tag()
         .unwrap()
@@ -27,8 +27,6 @@ pub fn init(mbi: &BootInformation) {
         (area.size() as usize) - (heap_start_addr - (area.start_address() as usize))
     };
 
-    println!("Initializing heap at range: {} - {} with lenght of: {}", heap_start_addr, heap_start_addr + heap_len, heap_len);
-
     unsafe {
         ALLOCATOR.lock().init(
             heap_start_addr as *mut u8, 
@@ -37,7 +35,7 @@ pub fn init(mbi: &BootInformation) {
     };
 
 
-    // TODO checks if allocator implementation is valid
+    // TEMP checks if allocator implementation is valid
     // remove for release 
     unsafe {
         use core::alloc::Layout;

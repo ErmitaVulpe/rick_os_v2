@@ -27,16 +27,16 @@ map_memory:
     mov edi, p3_identity    ; pointer to the p3 table
 
     populate_p3_identity:
-    mov dword [edi], 0b10000011
+    mov dword [edi], 0b10000011 | 0b10000
     mov dword [edi + 4], eax
     add edi, 8
-    mov dword [edi], 0x40000000 | 0b10000011
+    mov dword [edi], 0x40000000 | 0b10000011 | 0b10000
     mov dword [edi + 4], eax
     add edi, 8
-    mov dword [edi], 0x80000000 | 0b10000011
+    mov dword [edi], 0x80000000 | 0b10000011 | 0b10000
     mov dword [edi + 4], eax
     add edi, 8
-    mov dword [edi], 0xC0000000 | 0b10000011
+    mov dword [edi], 0xC0000000 | 0b10000011 | 0b10000
     mov dword [edi + 4], eax
     add edi, 8
     add eax, 1
